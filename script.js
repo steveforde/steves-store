@@ -38,7 +38,10 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('priceRange').addEventListener('change', filterAndSortProducts);
     document.getElementById('brandFilter').addEventListener('change', filterAndSortProducts);
     document.getElementById('sortOption').addEventListener('change', filterAndSortProducts);
-    document.getElementById('searchInput').addEventListener('input', filterAndSortProducts);
+    document.getElementById('searchInput').addEventListener('input', function() {
+        console.log("🔍 Search function triggered! User entered:", this.value);
+        filterAndSortProducts(); 
+    });
 
     // Newsletter form handling
     const newsletterForm = document.getElementById('newsletterForm');
@@ -80,19 +83,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Filter and sort products
 function filterAndSortProducts() {
+    const searchTerm = document.getElementById('searchInput').value.trim().toLowerCase();
     const priceRange = document.getElementById('priceRange').value;
-    const brand = document.getElementById('brandFilter').value;
+    const brand = document.getElementById('brandFilter').value.toLowerCase(); // also lowercase the selected brand
     const sortOption = document.getElementById('sortOption').value;
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
 
-    let filteredProducts = [...products];
+    let filteredProducts = products.filter(product => {
+        const nameMatches = product.name.toLowerCase().includes(searchTerm);
+        const brandMatches = product.brand.toLowerCase().includes(searchTerm);
 
-    // Apply filters
-    if (searchTerm) {
-        filteredProducts = filteredProducts.filter(product =>
-            product.name.toLowerCase().includes(searchTerm)
-        );
-    }
+        // Include the product if either the name or brand matches the search term
+        return nameMatches || brandMatches;
+    });
 
     if (priceRange !== 'all') {
         const [min, max] = priceRange.split('-').map(Number);
@@ -102,13 +104,10 @@ function filterAndSortProducts() {
     }
 
     if (brand !== 'all') {
-        filteredProducts = filteredProducts.filter(product =>
-            product.brand === brand
-        );
+        filteredProducts = filteredProducts.filter(product => product.brand.toLowerCase() === brand.toLowerCase());
     }
 
-    // Apply sorting
-    switch(sortOption) {
+    switch (sortOption) {
         case 'priceLow':
             filteredProducts.sort((a, b) => a.price - b.price);
             break;
@@ -121,7 +120,9 @@ function filterAndSortProducts() {
     }
 
     displayFilteredProducts(filteredProducts);
+    console.log("🛍️ Filtered Products:", filteredProducts);
 }
+
 
 // Display filtered products
 function displayFilteredProducts(filteredProducts) {
@@ -146,7 +147,7 @@ function displayFilteredProducts(filteredProducts) {
                     <img src="${product.image}" class="card-img-top" alt="${product.name}">
                     <div class="card-body">
                         <h5 class="card-title">${product.name}</h5>
-                        <p class="card-text">$${product.price.toFixed(2)}</p>
+                        <p class="card-text">€${product.price.toFixed(2)}</p>
 
                         <!-- Quantity controls inside card-body -->
                         <div class="quantity-controls mb-3">
@@ -214,15 +215,15 @@ function updateCartHeaderDisplay() {
             cartItemsHeader.innerHTML += `
                 <tr>
                     <td>${item.name}</td>
-                    <td>$${item.price.toFixed(2)}</td>
+                    <td>€${item.price.toFixed(2)}</td>
                     <td>${item.quantity}</td>
-                    <td>$${(item.price * item.quantity).toFixed(2)}</td>
+                    <td>€${(item.price * item.quantity).toFixed(2)}</td>
                     <td><button class="btn btn-danger btn-sm remove-btn-header" data-id="${item.id}">Remove</button></td>
                 </tr>
             `;
         });
 
-        cartTotalHeader.innerHTML = `<h4>Total: $${total.toFixed(2)}</h4>`;
+        cartTotalHeader.innerHTML = `<h4>Total: €${total.toFixed(2)}</h4>`;
     }
 
     // Ensure remove buttons work inside modal
@@ -464,16 +465,16 @@ function updateCartDisplay() {
             cartItems.innerHTML += `
                 <tr>
                     <td>${item.name}</td>
-                    <td>$${item.price.toFixed(2)}</td>
+                    <td>€${item.price.toFixed(2)}</td>
                     <td>${item.quantity}</td>
-                    <td>$${(item.price * item.quantity).toFixed(2)}</td>
+                    <td>€${(item.price * item.quantity).toFixed(2)}</td>
                     <td><button class="btn btn-danger btn-sm remove-btn" data-id="${item.id}">Remove</button></td>
                 </tr>
             `;
         });
 
         cartTotal.innerHTML = `
-            <h4>Total: $${total.toFixed(2)}</h4>
+            <h4>Total: €${total.toFixed(2)}</h4>
             <button class="btn btn-success w-100 mt-2" onclick="checkout()">Checkout</button>
         `;
     }
@@ -488,5 +489,3 @@ function updateCartDisplay() {
 
     updateCartCount();
 }
-
-
