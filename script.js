@@ -33,13 +33,14 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         console.warn("AOS is not defined. Make sure it's included in your project.");
     }
-
+    
+    
     // Add event listeners for filters
     document.getElementById('priceRange').addEventListener('change', filterAndSortProducts);
     document.getElementById('brandFilter').addEventListener('change', filterAndSortProducts);
     document.getElementById('sortOption').addEventListener('change', filterAndSortProducts);
     document.getElementById('searchInput').addEventListener('input', function() {
-        console.log("🔍 Search function triggered! User entered:", this.value);
+        console.log("Search input event triggered!");
         filterAndSortProducts(); 
     });
 
@@ -81,6 +82,33 @@ document.addEventListener('DOMContentLoaded', function() {
     updateCartCount(); // Update cart count
 });
 
+
+function addQuantityEventListeners() {
+    document.querySelectorAll('.btn-plus').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const quantityElement = this.previousElementSibling;
+            quantityElement.textContent = Math.max(1, parseInt(quantityElement.textContent) + 1);
+        });
+    });
+
+    document.querySelectorAll('.btn-minus').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const quantityElement = this.nextElementSibling;
+            let quantity = parseInt(quantityElement.textContent);
+            quantityElement.textContent = Math.max(1, quantity - 1);
+        });
+    });
+}
+
+function addAddToCartEventListeners() {
+    document.querySelectorAll('.addToCartBtn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const productId = parseInt(this.dataset.productId);
+            addToCart(productId);
+        });
+    });
+}
+
 // Filter and sort products
 function filterAndSortProducts() {
     const searchTerm = document.getElementById('searchInput').value.trim().toLowerCase();
@@ -89,11 +117,9 @@ function filterAndSortProducts() {
     const sortOption = document.getElementById('sortOption').value;
 
     let filteredProducts = products.filter(product => {
-        const nameMatches = product.name.toLowerCase().includes(searchTerm);
-        const brandMatches = product.brand.toLowerCase().includes(searchTerm);
-
-        // Include the product if either the name or brand matches the search term
-        return nameMatches || brandMatches;
+        const nameMatch = product.name.toLowerCase().includes(searchTerm);
+        const brandMatch = product.brand.toLowerCase().includes(searchTerm);
+        return nameMatch || brandMatch; // Match on either name or brand
     });
 
     if (priceRange !== 'all') {
@@ -127,9 +153,9 @@ function filterAndSortProducts() {
 // Display filtered products
 function displayFilteredProducts(filteredProducts) {
     const productGrid = document.getElementById('product-grid');
-    if (!productGrid) return;
+    if (!productGrid) return; // Make sure the element exists
 
-    productGrid.innerHTML = '';
+    productGrid.innerHTML = ''; // Clear previous results
 
     if (filteredProducts.length === 0) {
         productGrid.innerHTML = `
@@ -140,32 +166,32 @@ function displayFilteredProducts(filteredProducts) {
         return;
     }
 
-    filteredProducts.forEach(product => {
-        const productCard = `
-            <div class="col-md-4 mb-4" data-aos="fade-up" data-id="${product.id}">
+    let productHTML = filteredProducts.map(product => {
+        const { image, name, price, id } = product; // Destructuring for cleaner code
+        return `
+            <div class="col-md-4 mb-4" data-aos="fade-up" data-id="${id}">
                 <div class="card product-card">
-                    <img src="${product.image}" class="card-img-top" alt="${product.name}">
+                    <img src="${image}" class="card-img-top" alt="${name}">
                     <div class="card-body">
-                        <h5 class="card-title">${product.name}</h5>
-                        <p class="card-text">€${product.price.toFixed(2)}</p>
-
-                        <!-- Quantity controls inside card-body -->
+                        <h5 class="card-title">${name}</h5>
+                        <p class="card-text">€${price.toFixed(2)}</p>
                         <div class="quantity-controls mb-3">
                             <button class="btn btn-sm btn-outline-secondary btn-minus">-</button>
                             <span class="mx-2 quantity">1</span>
                             <button class="btn btn-sm btn-outline-secondary btn-plus">+</button>
                         </div>
-
-                        <button class="btn btn-primary w-100 addToCartBtn" data-product-id="${product.id}">
-                            ADD TO CART
-                        </button>
+                        <button class="btn btn-primary w-100 addToCartBtn" data-product-id="${id}">ADD TO CART</button>
                     </div>
                 </div>
             </div>
         `;
-        productGrid.innerHTML += productCard;
-    });
+    }).join('');
 
+    productGrid.innerHTML = productHTML; // Set the HTML of the product grid
+
+    addQuantityEventListeners();
+    addAddToCartEventListeners(); 
+}
     // Add event listeners for new controls
     document.querySelectorAll('.btn-plus').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -188,7 +214,6 @@ function displayFilteredProducts(filteredProducts) {
           addToCart(productId);
       });
     });
-}
 
 document.querySelector('[data-bs-target="#cartModal"]').addEventListener('click', function() {
     updateCartHeaderDisplay(); // Ensure the cart updates when opened
@@ -279,43 +304,7 @@ window.removeFromCart = function(productId) {
     }
 }
 
-    function filterAndSortProducts() {
-    const searchTerm = document.getElementById('searchInput').value.trim().toLowerCase();
-    const priceRange = document.getElementById('priceRange').value;
-    const brand = document.getElementById('brandFilter').value;
-    const sortOption = document.getElementById('sortOption').value;
-
-    let filteredProducts = products.filter(product => 
-        product.name.toLowerCase().includes(searchTerm) // Case-insensitive match
-    );
-
-    if (priceRange !== 'all') {
-        const [min, max] = priceRange.split('-').map(Number);
-        filteredProducts = filteredProducts.filter(product =>
-            product.price >= min && product.price <= max
-        );
-    }
-
-    if (brand !== 'all') {
-        filteredProducts = filteredProducts.filter(product => product.brand === brand);
-    }
-
-    switch (sortOption) {
-        case 'priceLow':
-            filteredProducts.sort((a, b) => a.price - b.price);
-            break;
-        case 'priceHigh':
-            filteredProducts.sort((a, b) => b.price - a.price);
-            break;
-        case 'name':
-            filteredProducts.sort((a, b) => a.name.localeCompare(b.name));
-            break;
-    }
-
-    displayFilteredProducts(filteredProducts);
-}
-
-
+   
 function showNotification(message) {
     const notification = document.createElement('div');
     notification.className = 'alert alert-success position-fixed top-0 end-0 m-3';
@@ -489,3 +478,21 @@ function updateCartDisplay() {
 
     updateCartCount();
 }
+
+document.addEventListener("DOMContentLoaded", function () {
+    const stripe = Stripe("your-publishable-key-here"); // 🔥 Replace with your Stripe test key
+    const checkoutButton = document.getElementById("checkout-button");
+
+    checkoutButton.addEventListener("click", async function () {
+        const response = await fetch("/create-checkout-session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ items: cart }), // 🛒 Pass cart items
+        });
+
+        const session = await response.json();
+
+        // Redirect to Stripe Checkout
+        stripe.redirectToCheckout({ sessionId: session.id });
+    });
+});
