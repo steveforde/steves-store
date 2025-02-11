@@ -480,7 +480,7 @@ function updateCartDisplay() {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-    const stripe = Stripe("your-publishable-key-here"); // 🔥 Replace with your Stripe test key
+    const stripe = Stripe("pk_test_51QqzbDQRh7jNBCuPmcSjXha8QMXWHVFE55ZBVPmCsUS8iGpBbJgJe0xWdQVKylHggAezdRDUZo4qlnVkfhQYdl3T00Uj2u1HZW"); // 🔥 Replace with your Stripe test key
     const checkoutButton = document.getElementById("checkout-button");
 
     checkoutButton.addEventListener("click", async function () {
