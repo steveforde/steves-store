@@ -1,64 +1,84 @@
-require("dotenv").config();
+require("dotenv").config(); // MUST BE FIRST LINE
+console.log("✅ Environment:", process.env.MONGO_URI ? "Loaded" : "Missing");
+
+// Dependencies
 const express = require("express");
+const mongoose = require("mongoose");
 const path = require("path");
 const cors = require("cors");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const nodemailer = require("nodemailer");
+const { Types } = mongoose;
 
+// Initialize Express
 const app = express();
 const PORT = process.env.PORT || 3000;
-const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-// Middleware setup
+// Database Connection
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log("✅ MongoDB Connected"))
+    .catch(err => console.error("❌ MongoDB Connection Error:", err));
+
+
+// Middleware
 app.use(cors());
 app.use(express.static("public"));
 
-// Stripe webhook handler (MUST come before express.json())
-app.post("/webhook",
-  express.raw({ type: "application/json" }),
-  async (req, res) => {
-    const sig = req.headers["stripe-signature"];
+// Stripe Webhook (must come before express.json())
+const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+  const sig = req.headers["stripe-signature"];
+  let event;
 
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+  } catch (err) {
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object;
     try {
-      const event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        endpointSecret
-      );
+      const expandedSession = await stripe.checkout.sessions.retrieve(session.id, {
+        expand: ["line_items"]
+      });
 
-      if (event.type === "checkout.session.completed") {
-        const session = event.data.object;
-        
-        // Retrieve expanded session details (fixing the expand issue)
-        const expandedSession = await stripe.checkout.sessions.retrieve(
-          session.id,
-          { expand: ["line_items"] }  // ✅ Correct way
-        );
+      // Send confirmation email
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS
+        }
+      });
 
-        // Prepare order details
-        const orderDetails = {
-          amount: expandedSession.amount_total / 100,
-          items: expandedSession.line_items.data.map(item => ({
-            name: item.description, // ✅ Use "description"
-            quantity: item.quantity,
-            price: (item.amount_total / 100).toFixed(2),
-          }))
-        };
+      const mailOptions = {
+        from: `"Store" <${process.env.EMAIL_USER}>`,
+        to: session.customer_details.email,
+        subject: "Order Confirmation",
+        html: `
+          <h1>Thank you for your order!</h1>
+          <p>Total: €${(expandedSession.amount_total / 100).toFixed(2)}</p>
+          <h3>Items:</h3>
+          <ul>
+            ${expandedSession.line_items.data.map(item => `
+              <li>${item.quantity}x ${item.description} - €${(item.amount_total / 100).toFixed(2)}</li>
+            `).join("")}
+          </ul>
+        `
+      };
 
-        // Send confirmation email
-        await sendOrderConfirmation(session.customer_details.email, orderDetails);
-      }
-
-      res.status(200).end();
+      await transporter.sendMail(mailOptions);
+      console.log("📧 Email sent to:", session.customer_details.email);
     } catch (err) {
-      console.error("❌ Error:", err.message);
-      res.status(400).send(`Webhook Error: ${err.message}`);
+      console.error("❌ Email error:", err);
     }
   }
-);
 
+  res.json({ received: true });
+});
 
-// Regular middleware for other routes
+// Regular Middleware
 app.use(express.json());
 
 // Routes
@@ -66,6 +86,47 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
+// Products Endpoint
+app.get("/api/products", async (req, res) => {
+  try {
+    const products = await mongoose.connection.db.collection("products")
+      .find({})
+      .toArray();
+
+    res.json(products);
+  } catch (err) {
+    console.error("❌ Products Error:", err);
+    res.status(500).json({ error: "Failed to fetch products" });
+  }
+});
+
+// Update Stock
+app.post("/api/update-stock", async (req, res) => {
+  const { productId, quantity } = req.body;
+  
+  if (!Types.ObjectId.isValid(productId)) {
+    return res.status(400).json({ error: "Invalid product ID" });
+  }
+
+  try {
+    const result = await mongoose.connection.db.collection("products")
+      .updateOne(
+        { _id: new Types.ObjectId(productId) },
+        { $inc: { stock: -quantity } }
+      );
+
+    if (result.modifiedCount === 0) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Stock Update Error:", err);
+    res.status(500).json({ error: "Failed to update stock" });
+  }
+});
+
+// Stripe Checkout
 app.post("/create-checkout-session", async (req, res) => {
   try {
     const session = await stripe.checkout.sessions.create({
@@ -84,61 +145,14 @@ app.post("/create-checkout-session", async (req, res) => {
     });
 
     res.json({ id: session.id });
-  } catch (error) {
-    console.error("Stripe Error:", error);
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    console.error("❌ Stripe Error:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.get("/success", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "success.html"));
-});
-
-app.get("/cancel", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "cancel.html"));
-});
-
-// Email configuration
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false
-  }
-});
-
-// Email sending function
-const sendOrderConfirmation = async (email, order) => {
-  const mailOptions = {
-    from: `"My Store" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: "Thank you for your order!",
-    html: `
-      <h1>Order Confirmation</h1>
-      <p>Total: €${order.amount.toFixed(2)}</p>
-      <h3>Items:</h3>
-      <ul>
-        ${order.items.map(item => `
-          <li>${item.quantity}x ${item.name} - €${item.price}</li>
-        `).join("")}
-      </ul>
-      <p>Thank you for shopping with us!</p>
-    `
-  };
-
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log("Email sent to:", email);
-  } catch (error) {
-    console.error("Email error:", error);
-    throw error;
-  }
-};
-
-// Start server
+// Start Server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
+

@@ -433,6 +433,40 @@ function updateCartCount() {
 }
 
 
+// Fetch and Display Products
+async function getProducts() {
+    try {
+      const response = await fetch('/api/products'); // Fetch from backend
+      const products = await response.json();
+  
+      const productsContainer = document.getElementById('products-container');
+      productsContainer.innerHTML = ''; // Clear previous content
+  
+      products.forEach(product => {
+        const productElement = document.createElement('div');
+        productElement.classList.add('product');
+        productElement.innerHTML = `
+          <img src="${product.image || 'images/placeholder.jpg'}" alt="${product.name}">
+          <h3>${product.name}</h3>
+          <p>Price: €${product.price.toFixed(2)}</p>
+          <p>${product.stock > 0 ? `In Stock: ${product.stock}` : '<span style="color:red;">Out of Stock</span>'}</p>
+          <button ${product.stock <= 0 ? 'disabled' : ''} onclick="addToCart('${product._id}', '${product.name}', ${product.price})">
+            Add to Cart
+          </button>
+        `;
+        productsContainer.appendChild(productElement);
+      });
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      document.getElementById('products-container').innerHTML = '<p>Failed to load products.</p>';
+    }
+  }
+  
+  // Call getProducts on page load
+  window.addEventListener('DOMContentLoaded', getProducts);
+  
+
+
 function updateCartDisplay() {
     const cartItems = document.getElementById('cart-items');
     const cartTotal = document.getElementById('cart-total'); // Ensure there's an element to display total
