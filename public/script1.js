@@ -31,8 +31,6 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         console.warn("AOS is not defined. Make sure it's included in your project.");
     }
-    console.log("DOMContentLoaded event fired."); // DEBUG
-
 
     // Event listeners for filters and search (these are safe here)
     document.getElementById('priceRange').addEventListener('change', filterAndSortProducts);
@@ -72,27 +70,29 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
-     
+     // Event listener for checkout button (safe here)
+    const checkoutButton = document.getElementById('checkout-btn');
+    if (checkoutButton) {
+        checkoutButton.addEventListener('click', handleStripeCheckout);
+    }
+
+
     // Initialize page
     displayProducts(); // Call to create the product list AND add event listeners
     updateCartDisplay();
     updateCartHeaderDisplay(); // Update header cart
     updateCartCount();
-    console.log("Initial cart:", cart); // DEBUG: Check cart on load
-
 
     // Handle successful checkout from localstorage
-    if (urlParams.get('checkout') === 'success') {
-        console.log("✅ Checkout completed, clearing cart...");
+    if (localStorage.getItem('checkout-success') === 'true') {
         localStorage.removeItem('shopping-cart');
         cart = [];
         updateCartDisplay();
         updateCartHeaderDisplay();
         updateCartCount();
         showNotification('Thank you for your purchase!');
+        localStorage.removeItem('checkout-success');
     }
-});
-     
 
   //Event Listener for cart modal
     const cartItemsContainer = document.getElementById('cart-items');
@@ -110,13 +110,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-
-    document.addEventListener("DOMContentLoaded", function () {
-        const checkoutButton = document.getElementById('checkout-btn');
-        if (checkoutButton) {
-            checkoutButton.addEventListener('click', handleStripeCheckout);
-        }
-    });
       const cartItemsHeader = document.getElementById('cart-items-header');
     if (cartItemsHeader) {
         cartItemsHeader.addEventListener('click', function(event) {
@@ -126,19 +119,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    // *** ADD THE EVENT DELEGATION CODE HERE, INSIDE DOMContentLoaded ***
-    document.addEventListener('click', function(event) {
-        if (event.target && event.target.id === 'checkout-btn-header') {
-            handleStripeCheckout(event);
-        }
-    });
-
-     document.addEventListener('click', function(event) {
-        if(event.target && event.target.id === 'checkout-btn'){
-            handleStripeCheckout();
-        }
-    });
-
+});
 
 function displayProducts() {
     const productGrid = document.getElementById('product-grid');
@@ -327,31 +308,28 @@ function addToCart(productId) {
     localStorage.setItem('shopping-cart', JSON.stringify(cart));
 }
 
+// Update Cart Display (Main Cart) - CORRECTED
 function updateCartDisplay() {
     const cartTable = document.getElementById('cart-items');
-    const cartTotalContainer = document.getElementById('cart-total'); // Use a container
+    const cartTotal = document.getElementById('cart-total');
 
-    console.log("updateCartDisplay called. cart:", cart); // DEBUG
-
-    if (!cartTable || !cartTotalContainer) {
-        console.error("Cart elements not found! cartTable:", cartTable, "cartTotalContainer:", cartTotalContainer);
+    if (!cartTable || !cartTotal) {
+        console.warn("Cart elements not found!");
         return;
     }
 
     cartTable.innerHTML = ''; // Clear previous content
-    let total = 0;  // INITIALIZE total - THIS IS THE MISSING LINE
+    let total = 0;
 
     if (cart.length === 0) {
-        console.log("Cart is empty."); // DEBUG
-        cartTable.innerHTML = `<tr><td colspan="6" class="text-center">Your cart is empty.</td></tr>`;
-        cartTotalContainer.innerHTML = '€0.00'; // Update container, not textContent directly
+        cartTable.innerHTML = `<tr><td colspan="6" class="text-center">Your cart is empty.</td></tr>`; // colspan="6"
+        cartTotal.textContent = '0.00';
     } else {
-        console.log("Cart has items:", cart); // DEBUG
         cart.forEach(item => {
-            console.log("  Processing item:", item); // DEBUG
             const itemTotal = item.price * item.quantity;
-            total += itemTotal;  // total will now work correctly
-            const rowHTML = `
+            total += itemTotal;
+            // Correctly use template literals here:
+            cartTable.innerHTML += `
                 <tr>
                     <td><img src="${item.image}" width="50"></td>
                     <td>${item.name}</td>
@@ -364,26 +342,18 @@ function updateCartDisplay() {
                     <td>€${itemTotal.toFixed(2)}</td>
                     <td><button class="btn btn-sm btn-danger remove-btn" data-id="${item.id}">Remove</button></td>
                 </tr>`;
-            console.log("    Generated rowHTML:", rowHTML); // DEBUG
-            cartTable.innerHTML += rowHTML;
         });
-
-        // Add total AND checkout button to the cartTotalContainer
-        cartTotalContainer.innerHTML = `
-            <h4>Total: €${total.toFixed(2)}</h4>
-            <button id="checkout-btn" class="btn btn-success w-100 mt-2">Checkout with Stripe</button>
-        `;
-        console.log("Added total and checkout. cartTotalContainer:", cartTotalContainer.innerHTML); //DEBUG
+        cartTotal.textContent = total.toFixed(2);
     }
-    console.log("updateCartDisplay finished."); // DEBUG
 }
+
+// Update Header Cart Display - CORRECTED
 function updateCartHeaderDisplay() {
     const cartDropdown = document.getElementById('cart-items-header');
+    const cartTotalHeader = document.getElementById('cart-total-header');
 
-    console.log("updateCartHeaderDisplay called. cart:", cart); // DEBUG
-
-    if (!cartDropdown) {
-        console.warn("Header cart element not found! cartDropdown:", cartDropdown);
+    if (!cartDropdown || !cartTotalHeader) {
+        console.warn("Header cart elements not found!");
         return;
     }
 
@@ -392,31 +362,22 @@ function updateCartHeaderDisplay() {
 
     if (cart.length === 0) {
         cartDropdown.innerHTML = `<li class="dropdown-item text-center">Your cart is empty.</li>`;
+        cartTotalHeader.textContent = 'Total: €0.00';
     } else {
-        // Add each item to the dropdown list
         cart.forEach(item => {
-            console.log("Header-Processing item:", item); // DEBUG
-            total += item.price * item.quantity;
+            const itemTotal = item.price * item.quantity;
+            total += itemTotal;
+            // Correctly use template literals here:
             cartDropdown.innerHTML += `
                 <li class="dropdown-item d-flex justify-content-between align-items-center">
                     <img src="${item.image}" style="width: 40px; height: auto;">
                     <span>${item.name} x${item.quantity}</span>
-                    <span>€${(item.price * item.quantity).toFixed(2)}</span>
+                    <span>€${itemTotal.toFixed(2)}</span>
                      <button class="btn btn-sm btn-danger remove-btn-header" data-id="${item.id}">X</button>
                 </li>`;
         });
-
-        // Add the total AND the checkout button as the LAST items in the dropdown
-        cartDropdown.innerHTML += `
-            <li class="dropdown-item text-center">
-                <strong>Total: €${total.toFixed(2)}</strong>
-            </li>
-            <li class="dropdown-item text-center">
-                <button id="checkout-btn-header" class="btn btn-primary w-100">Checkout with Stripe</button>
-            </li>
-        `;
+        cartTotalHeader.textContent = `Total: €${total.toFixed(2)}`;
     }
-     console.log("updateCartHeaderDisplay finished."); // DEBUG
 }
 
 function updateCartCount() {
@@ -462,7 +423,7 @@ function updateCartItemQuantity(productId, change) {
     }
 }
 async function handleStripeCheckout() {
-    console.log("handleStripeCheckout called! Cart:", cart); // DEBUG
+    console.log("handleStripeCheckout called! cart:", cart); // DEBUG: Check function call and cart
 
     if (cart.length === 0) {
         showNotification('Your cart is empty!');
@@ -470,37 +431,30 @@ async function handleStripeCheckout() {
     }
 
     try {
-        console.log("Preparing cartItems for Stripe..."); // DEBUG
         const cartItems = cart.map(item => ({
             name: item.name,
             price: parseFloat(item.price),
             quantity: parseInt(item.quantity, 10),
-            image: item.image.startsWith('http') ? item.image : `${window.location.origin}/${item.image}`
+            image: item.image.startsWith('http') ? item.image : `<span class="math-inline">\{window\.location\.origin\}/</span>{item.image}`
         }));
 
-        console.log("CartItems prepared:", cartItems); // DEBUG
-
-        // ✅ Send request to backend to create Stripe checkout session
-        console.log("Sending request to /create-checkout-session..."); // DEBUG
         const response = await fetch("/create-checkout-session", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ cartItems }),  // ✅ Fix: Use 'cartItems' instead of 'items'
+            body: JSON.stringify({ items: cartItems }),
         });
 
-        console.log("Response received:", response); // DEBUG
-
         const session = await response.json();
-        console.log("Session data:", session); // DEBUG
 
-        if (!response.ok) {
-            console.error("Server returned an error:", session.error);
-            throw new Error(session.error || 'Payment failed');
+        if (!response.ok) throw new Error(session.error || 'Payment failed');
+
+        const stripe = Stripe("pk_test_51QqzbDQRh7jNBCuPmcSjXha8QMXWHVFE55ZBVPmCsUS8iGpBbJgJe0xWdQVKylHggAezdRDUZo4qlnVkfhQYdl3T00Uj2u1HZW");
+        const result = await stripe.redirectToCheckout({ sessionId: session.id });
+
+        if (result.error) {
+            console.error("Checkout Error:", result.error);
+            showNotification(`Error during checkout: ${result.error.message}`);
         }
-
-        console.log("Redirecting to Stripe Checkout:", session.url);
-        window.location.href = session.url;  // ✅ Fix: Redirect using 'session.url'
-
     } catch (error) {
         console.error("Checkout Error:", error);
         showNotification(`Error during checkout: ${error.message}`);

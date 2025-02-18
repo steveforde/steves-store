@@ -148,44 +148,6 @@ body {
     background-color: #0056b3;
 }
 
-/* Style the container for the cart total */
-#cart-total-header-container {
-    position: absolute; /*  Take it out of the normal flow */
-    top: 100%;       /*  Position it just below the cart icon */
-    right: 0;        /*  Align it to the right */
-    background-color: #343a40; /* Match navbar background (important!) */
-    padding: 5px 10px;       /*  Add some padding */
-    border-bottom-left-radius: .25rem;  /* Match Bootstrap dropdown corners */
-    border-bottom-right-radius: .25rem; /* Match Bootstrap dropdown corners */
-    white-space: nowrap;     /* Prevent the total from wrapping */
-    z-index: 1000;          /* Make sure it appears above other elements */
-}
-
-/* Adjust padding/margin on the cart icon link to make space for the total */
-.nav-icons .dropdown > a { /* Targeting the cart dropdown link */
-    padding-right: 20px; /*  Add some extra padding on the right */
-    position: relative;     /*  Important for absolute positioning to work */
-}
-
-/* Style the cart count badge */
-.cart-badge {
-    background-color: #007bff;
-    color: white;
-    border-radius: 50%;
-    padding: 2px 6px;
-    font-size: 12px;
-    position: absolute; /* Position the badge */
-    top: -5px;       /*  Adjust as needed */
-    right: -5px;     /*  Adjust as needed */
-}
-
-
-/* Make sure dropdown appears above other elements */
-.dropdown-menu {
-    z-index: 1001; /* Higher than the header's z-index */
-}
-
-
 /* Hero Section */
 .hero-section {
     background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
@@ -661,4 +623,87 @@ footer h5 {
 
 .fa-shopping-cart:hover {
     transform: scale(1.2);
+}
+
+/* Unified Product Card Layout */
+.product-card, .featured-product-card {
+    border-radius: 10px;
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    text-align: center;
+    background-color: #fff;
+}
+
+.product-card img, .featured-product-card img {
+    max-width: 100%;
+    height: 250px;
+    object-fit: cover;
+    border-radius: 10px 10px 0 0;
+}
+
+.product-card:hover, .featured-product-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+}
+
+/* Make Regular Products Use Grid (Same as Featured) */
+#products-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    padding: 20px;
+    justify-items: center;
+}
+
+/* Consistent Image Sizes */
+#products-list img {
+    height: 250px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    #products-list {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+}
+
+/* Make Featured and Regular Products Use the Same Grid */
+#featured-products, #products-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    padding: 20px;
+    justify-items: center;
+}
+
+/* Uniform Card Styles for Featured and Regular Products */
+.featured-product-card, .product-card {
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+    background-color: #fff;
+    text-align: center;
+}
+
+.featured-product-card img, .product-card img {
+    height: 250px;
+    width: 100%;
+    object-fit: cover;
+    border-radius: 10px 10px 0 0;
+}
+
+.featured-product-card:hover, .product-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+}
+
+/* Responsive Design for Mobile */
+@media (max-width: 768px) {
+    #featured-products, #products-list {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
 }
