@@ -6,3 +6,6 @@ server-backup.js
 public/index3.html
 public/script3.js
 server3.js
+.DS_Store
+node_modules/
+event_data.json
