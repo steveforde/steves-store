@@ -1,151 +1,128 @@
-require("dotenv").config(); // Load environment variables
-console.log("✅ Environment:", process.env.MONGO_URI ? "Loaded" : "Missing");
+const express = require('express');
+const Stripe = require('stripe');
+const nodemailer = require('nodemailer');
+const dotenv = require('dotenv');
 
-// Dependencies
-const express = require("express");
-const mongoose = require("mongoose");
-const { Types } = require("mongoose");
-const path = require("path");
-const cors = require("cors");
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+dotenv.config();
+
 const app = express();
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// Middleware setup
-app.use(express.json()); // Enable JSON parsing
-app.use(cors());
-app.use(express.static("public")); // Serve static files from the 'public' directory
-
-// --- WEBHOOK HANDLER (MUST BE BEFORE express.json()) ---
-const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
-app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
-    console.log("Webhook received!"); 
-    const sig = req.headers["stripe-signature"];
-    
-    let event;
-    try {
-        event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-        console.log("Webhook event type:", event.type);
-    } catch (err) {
-        console.error("❌ Webhook signature verification failed:", err.message);
-        return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-
-    if (event.type === "checkout.session.completed") {
-        const session = event.data.object;
-        console.log("✅ Payment successful! Session ID:", session.id);
-
-        try {
-            const expandedSession = await stripe.checkout.sessions.retrieve(session.id, {
-                expand: ["line_items"]
-            });
-
-            console.log("🛒 Order details:", expandedSession);
-            console.log("✅ Fulfilling order...");
-        } catch (error) {
-            console.error("❌ Error retrieving session:", error);
-            return res.status(500).send(`Error retrieving session: ${error.message}`);
-        }
-    }
-
-    res.status(200).send();
+// Configure Nodemailer for Gmail
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
 });
 
-// --- CREATE CHECKOUT SESSION ROUTE ---
-app.post("/create-checkout-session", async (req, res) => {
-    console.log("--- /create-checkout-session route hit ---"); 
-    try {
-        const { cartItems } = req.body;
-        console.log("Received cartItems from client:", cartItems);
+// Serve static files
+app.use(express.static('public'));
 
-        if (!cartItems || !Array.isArray(cartItems)) {
-            console.error("ERROR: Invalid cartItems data received.");
-            return res.status(400).json({ error: 'Invalid cartItems data. Expected an array.' });
-        }
+// Webhook route (must come before body-parsing middleware)
+app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  let event;
 
-        const lineItems = cartItems.map(item => {
-            if (!item || typeof item.name !== 'string' || typeof item.price !== 'number' || typeof item.quantity !== 'number' || typeof item.image !== 'string') {
-                console.error("❌ Invalid item format:", item);
-                throw new Error("Invalid item format. Each item must have 'name' (string), 'price' (number), 'quantity' (number), and 'image' (string).");
-            }
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    console.log('Webhook received and verified:', event.type);
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
 
-            return {
-                price_data: {
-                    currency: 'eur',
-                    product_data: {
-                        name: item.name,
-                        images: [item.image]
-                    },
-                    unit_amount: Math.round(item.price * 100), 
-                },
-                quantity: item.quantity,
-            };
+  // Handle the event
+  switch (event.type) {
+    case 'checkout.session.completed':
+      const session = event.data.object;
+      console.log('Checkout session completed! Session ID:', session.id);
+      const email = session.customer_email || 'sforde08@gmail.com'; // Fallback email
+      console.log('Customer email:', email);
+
+      try {
+        const lineItems = await stripe.checkout.sessions.retrieve(session.id, { expand: ['line_items'] });
+        const orderDetails = lineItems.line_items.data.map(item =>
+          `${item.description || 'Item'} - €${(item.amount_total / 100).toFixed(2)} x ${item.quantity}`
+        ).join('\n');
+
+        const emailMessage = `
+          <h1>Payment Successful!</h1>
+          <p>Thank you for your order!</p>
+          <p>Details:</p>
+          <ul>${orderDetails.split('\n').map(detail => `<li>${detail}</li>`).join('')}</ul>
+          <p>Your order will be processed soon.</p>
+        `;
+
+        await transporter.sendMail({
+          from: process.env.EMAIL_USER,
+          to: email,
+          subject: 'Order Confirmation - Your Purchase',
+          html: emailMessage,
         });
+        console.log('Confirmation email sent to:', email);
+      } catch (error) {
+        console.error('Error processing checkout.session.completed:', error);
+      }
+      break;
 
-        console.log("All lineItems for Stripe:", lineItems);
+    default:
+      console.log(`Unhandled event type ${event.type}`);
+  }
 
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ['card'],
-            line_items: lineItems,
-            mode: 'payment',
-            success_url: `${req.headers.origin}/success.html`,
-            cancel_url: `${req.headers.origin}/cancel.html`,
-        });
-
-        console.log("Stripe session created:", session);
-
-        res.json({ url: session.url });
-    } catch (error) {
-        console.error("❌ Error creating checkout session:", error);
-        res.status(500).json({ error: "Failed to create checkout session", details: error.message });
-    }
+  res.sendStatus(200); // Respond to Stripe with success
 });
 
-// --- SERVE INDEX PAGE ---
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+// Apply JSON parsing for other routes (after webhook)
+app.use(express.json());
+
+// Create checkout session
+app.post('/create-checkout-session', async (req, res) => {
+  const { cartItems, customerEmail } = req.body;
+  console.log('Received cartItems and customerEmail:', { cartItems, customerEmail });
+
+  try {
+    const lineItems = cartItems.map(item => ({
+      price_data: {
+        currency: 'eur',
+        product_data: {
+          name: item.name,
+        },
+        unit_amount: Math.round(item.price * 100),
+      },
+      quantity: item.quantity,
+    }));
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: lineItems,
+      mode: 'payment',
+      success_url: 'http://localhost:3000/success.html',
+      cancel_url: 'http://localhost:3000/cancel.html',
+      customer_email: customerEmail || 'sforde08@gmail.com',
+    });
+
+    res.json({ url: session.url });
+  } catch (error) {
+    console.error('Checkout error:', error);
+    res.status(500).send('Error creating checkout session');
+  }
 });
 
-// --- PRODUCTS ENDPOINT ---
-app.get("/api/products", async (req, res) => {
-    try {
-        const products = await mongoose.connection.db.collection("products").find({}).toArray();
-        res.json(products);
-    } catch (err) {
-        console.error("❌ Products Error:", err);
-        res.status(500).json({ error: "Failed to fetch products" });
-    }
+// Success and cancel pages
+app.get('/success.html', (req, res) => {
+  res.send('<h1>Payment Successful! Thank you for your purchase.</h1>');
 });
 
-// --- UPDATE STOCK ---
-app.post("/api/update-stock", async (req, res) => {
-    const { productId, quantity } = req.body;
-    
-    if (!Types.ObjectId.isValid(productId)) {
-        return res.status(400).json({ error: "Invalid product ID" });
-    }
-
-    try {
-        const result = await mongoose.connection.db.collection("products")
-            .updateOne({ _id: new Types.ObjectId(productId) }, { $inc: { stock: -quantity } });
-
-        if (result.modifiedCount === 0) {
-            return res.status(404).json({ error: "Product not found" });
-        }
-
-        res.json({ success: true });
-    } catch (err) {
-        console.error("❌ Stock Update Error:", err);
-        res.status(500).json({ error: "Failed to update stock" });
-    }
+app.get('/cancel.html', (req, res) => {
+  res.send('<h1>Payment Canceled. Please try again.</h1>');
 });
 
-// --- HEALTH CHECK ROUTE ---
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok' });
-});
-
-// --- SERVER STARTUP ---
+// Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`✅ Server running on http://localhost:${PORT}`);
+  console.log(`✅ Server running on http://localhost:${PORT}`);
 });

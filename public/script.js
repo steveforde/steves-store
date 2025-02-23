@@ -23,7 +23,13 @@ const products = [
     { id: 12, name: "Samsung Galaxy Book", brand: "Samsung", price: 999.99, image: "images/galaxy.jpg" }
 ];
 
-const stripe = Stripe("pk_test_51QqzbDQRh7jNBCuPmcSjXha8QMXWHVFE55ZBVPmCsUS8iGpBbJgJe0xWdQVKylHggAezdRDUZo4qlnVkfhQYdl3T00Uj2u1HZW");
+fetch("/config")
+    .then(response => response.json())
+    .then(data => {
+        const stripe = Stripe(data.publishableKey);
+    })
+    .catch(error => console.error("Error fetching Stripe key:", error));
+
 
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof AOS !== 'undefined') {
@@ -32,7 +38,7 @@ document.addEventListener('DOMContentLoaded', function() {
         console.warn("AOS is not defined. Make sure it's included in your project.");
     }
     console.log("DOMContentLoaded event fired."); // DEBUG
-
+    const urlParams = new URLSearchParams(window.location.search);
 
     // Event listeners for filters and search (these are safe here)
     document.getElementById('priceRange').addEventListener('change', filterAndSortProducts);
@@ -461,48 +467,35 @@ function updateCartItemQuantity(productId, change) {
         }
     }
 }
-async function handleStripeCheckout() {
-    console.log("handleStripeCheckout called! Cart:", cart); // DEBUG
 
-    if (cart.length === 0) {
-        showNotification('Your cart is empty!');
+async function handleStripeCheckout() {
+    console.log("handleStripeCheckout called! Cart:", cart);
+    if (!Array.isArray(cart) || cart.length === 0) {
+        alert("Your cart is empty!");
         return;
     }
 
+    const cartItems = cart.map(item => ({
+        name: item.name,
+        price: parseFloat(item.price),
+        quantity: item.quantity,
+        image: item.image.startsWith('http') ? item.image : `http://localhost:3000/${item.image}`
+    }));
+
+    const customerEmail = "sforde08@gmail.com"; // Hardcoded for now
+
     try {
-        console.log("Preparing cartItems for Stripe..."); // DEBUG
-        const cartItems = cart.map(item => ({
-            name: item.name,
-            price: parseFloat(item.price),
-            quantity: parseInt(item.quantity, 10),
-            image: item.image.startsWith('http') ? item.image : `${window.location.origin}/${item.image}`
-        }));
-
-        console.log("CartItems prepared:", cartItems); // DEBUG
-
-        // ✅ Send request to backend to create Stripe checkout session
-        console.log("Sending request to /create-checkout-session..."); // DEBUG
         const response = await fetch("/create-checkout-session", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ cartItems }),  // ✅ Fix: Use 'cartItems' instead of 'items'
+            body: JSON.stringify({ cartItems, customerEmail })
         });
 
-        console.log("Response received:", response); // DEBUG
-
         const session = await response.json();
-        console.log("Session data:", session); // DEBUG
-
-        if (!response.ok) {
-            console.error("Server returned an error:", session.error);
-            throw new Error(session.error || 'Payment failed');
-        }
-
-        console.log("Redirecting to Stripe Checkout:", session.url);
-        window.location.href = session.url;  // ✅ Fix: Redirect using 'session.url'
-
+        if (!response.ok) throw new Error(session.error || "Checkout failed");
+        window.location.href = session.url;
     } catch (error) {
         console.error("Checkout Error:", error);
-        showNotification(`Error during checkout: ${error.message}`);
+        alert("Checkout failed, please try again.");
     }
 }
