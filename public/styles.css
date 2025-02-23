@@ -505,27 +505,90 @@ body {
     font-size: 0.9rem;
 }
 
-.shipping-card {
-    background: white;
-    border-radius: 10px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    height: 100%;
-}
-
-.shipping-card h5 {
+/* Shipping Information Section - Specific to .shipping-info */
+.shipping-info {
+    padding: 20px 0;
+    background-color: #fff;
+  }
+  
+  .shipping-info .container {
+    max-width: 1200px;
+  }
+  
+  .shipping-info h3 {
+    color: #333;
+    font-weight: bold;
+  }
+  
+  .shipping-info .row {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  
+  .shipping-info .col-md-6 {
+    flex: 0 0 auto;
+    max-width: 48%; /* Slightly less than 50% to account for gap */
+    margin-bottom: 15px;
+  }
+  
+  .shipping-card {
+    background-color: #f5f5f5;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+  }
+  
+  .shipping-card h5 {
     color: #007bff;
-    margin-bottom: 1rem;
-}
-
-.shipping-card ul li {
-    margin-bottom: 0.5rem;
+    margin-bottom: 10px;
+  }
+  
+  .shipping-card h5 i {
+    color: #007bff;
+  }
+  
+  .shipping-card ul.list-unstyled li {
     color: #666;
-}
-
-.shipping-card i {
-    color: #007bff;
-}
-
+    margin-bottom: 5px;
+  }
+  
+  /* Responsive adjustments for shipping cards */
+  @media (max-width: 768px) {
+    .shipping-info .col-md-6 {
+      max-width: 100%;
+      margin-bottom: 10px;
+    }
+  }
+  
+  /* Ensure product grid stays 3 columns - Specific to .products */
+  .products .row {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 -15px; /* Reset Bootstrap margins if needed */
+  }
+  
+  .products .col-md-4 {
+    flex: 0 0 33.333333%; /* 3 columns on medium and larger screens */
+    max-width: 33.333333%;
+    padding: 0 15px; /* Match Bootstrap padding */
+  }
+  
+  /* Responsive adjustments for products */
+  @media (max-width: 768px) {
+    .products .col-md-4 {
+      flex: 0 0 50%; /* 2 columns on tablets */
+      max-width: 50%;
+    }
+  
+    @media (max-width: 576px) {
+      .products .col-md-4 {
+        flex: 0 0 100%; /* 1 column on phones */
+        max-width: 100%;
+      }
+    }
+  }
 /* Cart section */
 #cart {
     background-color: #f8f9fa;
